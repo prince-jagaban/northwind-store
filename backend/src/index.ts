@@ -12,9 +12,9 @@ import { clerkWebhookHandler } from "./webhooks/clerk";
 import { getEnv } from "./lib/env";
 import keepAliveCron from "./lib/cron";
 
-// import productRouter from "./routes/productRouter";
-// import meRouter from "./routes/meRouter";
-// import streamRouter from "./routes/streamRouter";
+import productRouter from "./routes/productRouter";
+import meRouter from "./routes/meRouter";
+import streamRouter from "./routes/streamRouter";
 // import chekoutRouter from "./routes/chekoutRouter";
 // import adminRouter from "./routes/adminRouter";
 // import orderRouter from "./routes/orderRouter";
@@ -44,12 +44,12 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-// app.use("/api/me", meRouter);
-// app.use("/api/products", productRouter);
-// app.use("/api/stream", streamRouter);
-// app.use("/api/checkout", chekoutRouter);
-// app.use("/api/admin", adminRouter);
-// app.use("/api/orders", orderRouter);
+app.use("/api/me", meRouter);
+app.use("/api/products", productRouter);
+app.use("/api/stream", streamRouter);
+app.use("/api/checkout", chekoutRouter);
+app.use("/api/admin", adminRouter);
+app.use("/api/orders", orderRouter);
 
 const publicDir = path.join(process.cwd(), "public");
 if (fs.existsSync(publicDir)) {
@@ -88,5 +88,5 @@ app.listen(env.PORT, () => {
   console.log("Listening on port:", env.PORT);
    if (env.NODE_ENV === "production") {
      keepAliveCron.start();
-   }
+
 });
