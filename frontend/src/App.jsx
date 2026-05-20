@@ -1,10 +1,10 @@
 import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/react';
-import "./App.css";
+
 function App() {
 
   return (
     <>
-      <header>
+      <header he>
         <Show when="signed-out">
           <SignInButton mode='modal'/>
           <SignUpButton mode='modal'/>
@@ -13,6 +13,9 @@ function App() {
           <UserButton />
         </Show>
       </header>
+
+      <p className='text-red-400 font-black bg-blue-50'>hello world</p>
+      <button className='btn btn-primary'>Click me</button>
     </>
   )
 }
