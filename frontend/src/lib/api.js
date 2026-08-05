@@ -1,105 +1,65 @@
-import { Show, SignInButton, useAuth, UserButton } from "@clerk/react";
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "../lib/api";
-import { Link } from "react-router";
+import * as Sentry from "@sentry/react";
 
-import {
-  LogInIcon,
-  PackageIcon,
-  SettingsIcon,
-  ShoppingBagIcon,
-  ShoppingCartIcon,
-  StoreIcon,
-} from "lucide-react";
-import { useCart } from "../store/cart";
+const raw = import.meta.env.VITE_API_URL;
+const base = typeof raw === "string" ? raw.replace(/\/+$/, "") : ""; // remove trailing slashes
 
-const Navbar = () => {
-  const { getToken, isSignedIn } = useAuth();
+// this is an authenticated fetch req that we use to send reqs to our api
+export async function apiFetch(path, opts = {}) {
+  const { getToken, method = "GET", body } = opts;
+  const headers = { "Content-Type": "application/json" };
 
-  const { data: meData } = useQuery({
-    queryKey: ["me"],
-    queryFn: () => apiFetch("/api/me", { getToken }),
-    enabled: isSignedIn,
+  if (getToken) {
+    const token = await getToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  }
+
+  let res;
+  try {
+    res = await fetch(`${base}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    Sentry.addBreadcrumb({
+      category: "api",
+      message: `${method} ${path}`,
+      level: "error",
+      data: { network: true },
+    });
+
+    Sentry.captureException(e, {
+      tags: { "api.fetch": "network" },
+      extra: { path, method },
+    });
+
+    throw e;
+  }
+
+  const data = await res.json();
+
+  Sentry.addBreadcrumb({
+    category: "api",
+    message: `${method} ${path}`,
+    level: res.ok ? "info" : "warning",
+    data: { status: res.status },
   });
 
-  const role = meData?.user?.role;
+  if (!res.ok) {
+    const msg = typeof data?.error === "string" ? data.error : res.statusText;
+    const err = new Error(typeof msg === "string" ? msg : "Request failed");
 
-  const cartCount = useCart((s) => s.items.reduce((n, line) => n + line.quantity, 0));
+    if (res.status >= 500) {
+      Sentry.captureException(err, {
+        tags: { "api.fetch": "http", "http.status": String(res.status) },
+        extra: { path, method, status: res.status },
+      });
+    }
 
-  return (
-    <header className="sticky top-0 z-50 border-b border-base-300 bg-base-100/95 shadow-sm backdrop-blur-md">
-      <div className="navbar mx-auto min-h-14 max-w-7xl px-4 py-2.5 md:px-6 md:py-3">
-        <div className="flex-1">
-          <Link
-            to="/"
-            className="btn btn-ghost gap-2 px-2 font-mono text-lg font-semibold uppercase tracking-wide md:text-xl"
-          >
-            <span className="flex size-10 items-center justify-center rounded-lg bg-primary/15 p-1 text-primary">
-              <StoreIcon className="size-8" aria-hidden />
-            </span>
-            <span className="leading-none">Northwind</span>
-          </Link>
-        </div>
+    throw err;
+  }
 
-        <nav className="flex items-center gap-1 md:gap-1.5">
-          <Link to="/" className="btn btn-ghost gap-2 font-medium">
-            <ShoppingBagIcon className="size-6 opacity-90" aria-hidden />
-            <span className="hidden sm:inline">Shop</span>
-          </Link>
-
-          <Show when={"signed-in"}>
-            <Link to="/orders" className="btn btn-ghost gap-2 font-medium">
-              <PackageIcon className="size-6 opacity-90" aria-hidden />
-              <span className="hidden sm:inline">Orders</span>
-            </Link>
-
-            {role === "admin" ? (
-              <Link to="/admin" className="btn btn-ghost gap-2 font-medium text-secondary">
-                <SettingsIcon className="size-6" aria-hidden />
-                <span className="hidden sm:inline">Admin</span>
-              </Link>
-            ) : null}
-          </Show>
-
-          <Link
-            to="/cart"
-            className="btn btn-ghost gap-2 font-medium indicator"
-            aria-label={cartCount > 0 ? `Cart, ${cartCount} items` : "Cart"}
-          >
-            {cartCount > 0 ? (
-              <span className="indicator-item badge badge-sm badge-primary min-w-2 px-1.5 font-sans text-xs tabular-nums">
-                {cartCount > 99 ? "99+" : cartCount}
-              </span>
-            ) : null}
-            <ShoppingCartIcon className="size-6 opacity-90" aria-hidden />
-            <span className="hidden sm:inline">Cart</span>
-          </Link>
-
-          <Show when={"signed-out"}>
-            <SignInButton mode="modal">
-              <button type="button" className="btn btn-primary btn-sm gap-1.5 px-3 shadow-md">
-                <LogInIcon className="size-4 drop-shadow-sm" aria-hidden />
-                Sign in
-              </button>
-            </SignInButton>
-          </Show>
-
-          <Show when={"signed-in"}>
-            <div className="flex items-center gap-2 border-l border-base-300 pl-3">
-              <UserButton
-                appearance={{ elements: { avatarBox: "h-10 w-10 ring-2 ring-base-300" } }}
-              />
-              {role === "support" || role === "admin" ? (
-                <span className="badge badge-primary badge-sm hidden capitalize md:inline-flex">
-                  {role}
-                </span>
-              ) : null}
-            </div>
-          </Show>
-        </nav>
-      </div>
-    </header>
-  );
-};
-
-export default Navbar;
+  return data;
+}
